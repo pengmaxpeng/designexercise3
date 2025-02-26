@@ -9,21 +9,23 @@ import datetime
 import chat_pb2
 import chat_pb2_grpc
 
-# Print error messages to stderr
+# Utility function to print errors to stderr
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 class ChatClient:
     def __init__(self, server_host='localhost', server_port=50051):
+        # Initialize connection parameters and gRPC channel
         self.server_address = f"{server_host}:{server_port}"
         self.channel = grpc.insecure_channel(self.server_address)
         self.stub = chat_pb2_grpc.ChatServiceStub(self.channel)
         self.username = None
         self.login_err = False  # Flag to track login errors
         self.message_thread = None
-        self.running = True
+        self.running = True  # Flag to control the message receiving loop
 
     def login(self, username, password):
+        # Log in the user if not already logged in
         if self.username is None:
             try:
                 response = self.stub.Login(chat_pb2.LoginRequest(
@@ -33,7 +35,7 @@ class ChatClient:
                 if response.success:
                     self.username = username
                     print(response.message)
-                    # Start receiving messages
+                    # Start thread for receiving messages asynchronously
                     self.message_thread = threading.Thread(target=self.receive_messages, daemon=True)
                     self.message_thread.start()
                 else:
@@ -46,6 +48,7 @@ class ChatClient:
             eprint("You are already logged in")
 
     def create_account(self, username, password):
+        # Create a new account on the server
         try:
             response = self.stub.CreateAccount(chat_pb2.CreateAccountRequest(
                 username=username,
@@ -56,6 +59,7 @@ class ChatClient:
             eprint(f"RPC Error: {e.details()}")
 
     def send_message(self, recipient, message):
+        # Send a message from the logged-in user to the recipient
         if not self.username:
             eprint("Please log in or create an account first")
             return
@@ -71,6 +75,7 @@ class ChatClient:
             eprint(f"RPC Error: {e.details()}")
 
     def list_accounts(self, wildcard="*"):
+        # Retrieve and display accounts matching the wildcard pattern
         try:
             response = self.stub.ListAccounts(chat_pb2.ListAccountsRequest(
                 username=self.username,
@@ -82,6 +87,7 @@ class ChatClient:
             eprint(f"RPC Error: {e.details()}")
 
     def read_messages(self, limit=0):
+        # Fetch unread messages with an optional limit on the number of messages
         try:
             response = self.stub.ReadMessages(chat_pb2.ReadMessagesRequest(
                 username=self.username,
@@ -97,9 +103,10 @@ class ChatClient:
             eprint(f"RPC Error: {e.details()}")
 
     def delete_messages(self, indices):
+        # Delete specific messages by their IDs (input can be a comma-separated string or a list)
         try:
             if isinstance(indices, str):
-                # Parse comma-separated string of indices
+                # Convert comma-separated string to a list of integers
                 id_list = [int(idx.strip()) for idx in indices.split(",") if idx.strip()]
             else:
                 id_list = indices
@@ -113,6 +120,7 @@ class ChatClient:
             eprint(f"RPC Error: {e.details()}")
 
     def view_conversation(self, other_user):
+        # View the conversation history with another user
         try:
             response = self.stub.ViewConversation(chat_pb2.ViewConversationRequest(
                 username=self.username,
@@ -128,6 +136,7 @@ class ChatClient:
             eprint(f"RPC Error: {e.details()}")
 
     def delete_account(self):
+        # Delete the currently logged-in user's account
         try:
             response = self.stub.DeleteAccount(chat_pb2.DeleteAccountRequest(
                 username=self.username
@@ -139,6 +148,7 @@ class ChatClient:
             eprint(f"RPC Error: {e.details()}")
 
     def log_off(self):
+        # Log off the user without deleting the account
         if not self.username:
             return
         
@@ -152,26 +162,29 @@ class ChatClient:
             eprint(f"RPC Error: {e.details()}")
 
     def receive_messages(self):
+        # Continuously listen for new messages via gRPC streaming
         try:
-            # Request a stream of incoming messages
             subscription_request = chat_pb2.SubscribeRequest(username=self.username)
             for message in self.stub.SubscribeToMessages(subscription_request):
                 print(f"\nNew message from {message.sender}: {message.content}")
                 print("Enter command: ", end="", flush=True)
         except grpc.RpcError as e:
-            if self.running:  # Only print error if not shutting down
+            # Only show errors if the client is still running
+            if self.running:
                 eprint(f"Error in message subscription: {e.details()}")
 
     def close(self):
+        # Cleanly close the client by logging off and closing the channel
         self.running = False
         self.log_off()
         self.channel.close()
         print("Connection closed")
 
-# Function to handle user commands from the terminal interactively
+# Function to handle user commands interactively via the terminal
 def handle_user(client):
     while True:
         if not client.username:
+            # When not logged in, offer login or account creation options
             print("\nAvailable commands:")
             print("1. Login")
             print("2. Create an account")
@@ -181,7 +194,7 @@ def handle_user(client):
                 username = input("Enter your username: ")
                 password = input("Enter your password: ")
                 client.login(username, password)
-                # Wait for login confirmation
+                # Wait until login is confirmed or fails
                 while not client.username:
                     if client.login_err:
                         client.login_err = False
@@ -197,6 +210,7 @@ def handle_user(client):
             else:
                 print("Invalid command. Please try again.")
         else:
+            # When logged in, display full set of messaging commands
             print("\nAvailable commands:")
             print("1. Send a message")
             print("2. Read undelivered messages")
@@ -209,6 +223,7 @@ def handle_user(client):
             if choice == "1":
                 recipient = input("Enter the recipient's username: ")
                 message = input("Enter the message: ")
+                # Show the current timestamp before sending the message
                 print(datetime.datetime.now())
                 client.send_message(recipient, message)
             elif choice == "2":
@@ -231,7 +246,7 @@ def handle_user(client):
                 print("Invalid command. Please try again.")
 
 if __name__ == '__main__':
-    # Default host and port values
+    # Default connection settings for the chat server
     server_host = "localhost"
     server_port = 50051
     client = ChatClient(server_host, server_port)
