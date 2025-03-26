@@ -1,0 +1,10 @@
+{
+  "next_msg_id": 1,
+  "users": {
+    "ivy": {
+      "password_hash": "ef72e8cef6e3cbf2be92e845b736a5859a001082f02c87362acbdce59a3f0b7e",
+      "messages": []
+    }
+  },
+  "conversations": {}
+}

@@ -1,0 +1,27 @@
+{
+  "next_msg_id": 2,
+  "users": {
+    "max": {
+      "password_hash": "ef72e8cef6e3cbf2be92e845b736a5859a001082f02c87362acbdce59a3f0b7e",
+      "messages": []
+    },
+    "ivy": {
+      "password_hash": "ef72e8cef6e3cbf2be92e845b736a5859a001082f02c87362acbdce59a3f0b7e",
+      "messages": []
+    },
+    "maggie": {
+      "password_hash": "e28b2895f6b3dc27a9009b3fe6838aac56b5e1472e755209ced81b72bca1dbfb",
+      "messages": []
+    }
+  },
+  "conversations": {
+    "ivy::max": [
+      {
+        "id": 1,
+        "sender": "ivy",
+        "content": "testing11",
+        "timestamp": "2025-03-26T00:32:28.770407"
+      }
+    ]
+  }
+}
