@@ -6,6 +6,10 @@ import fnmatch
 import threading
 from collections import OrderedDict
 from concurrent import futures
+import os
+import json
+import threading
+
 
 # Import the generated gRPC code
 import chat_pb2
@@ -13,14 +17,90 @@ import chat_pb2_grpc
 
 class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
     def __init__(self):
-        # Maps usernames to their data (password hash and unread messages)
-        self.users = OrderedDict()     
-        # Maps usernames to their active subscription channels
+        super().__init__()
+
+        self.data_lock = threading.Lock()
+        self.data_file = "chat_data.json"
+
+        self.users = OrderedDict()
         self.active_subscriptions = {}
-        # Maps a sorted tuple of two usernames to a list of message entries (conversation history)
         self.conversations = {}
-        self.next_msg_id = 1  # Global counter for assigning unique message IDs
-    
+        self.next_msg_id = 1
+
+        # Load data from file at startup
+        self.load_data()
+
+    def load_data(self):
+        if not os.path.exists(self.data_file):
+            return
+        with self.data_lock:
+            try:
+                with open(self.data_file, "r") as f:
+                    data = json.load(f)
+                self.next_msg_id = data.get("next_msg_id", 1)
+                self.users = OrderedDict(data.get("users", {}))
+                
+                loaded_convs = data.get("conversations", {})
+                self.conversations = {}
+                for key_str, msg_list in loaded_convs.items():
+                    key_tuple = tuple(key_str.split("::"))
+                    converted = []
+                    for m in msg_list:
+                        converted.append(chat_pb2.ChatMessage(
+                            id=m["id"],
+                            sender=m["sender"],
+                            content=m["content"],
+                            timestamp=m["timestamp"]
+                        ))
+                    self.conversations[key_tuple] = converted
+            except Exception as e:
+                print(f"[load_data] Error: {e}")
+
+    def save_data(self):
+        data = {}
+        data["next_msg_id"] = self.next_msg_id
+
+        # Convert self.users to a serializable dict
+        # Because self.users[username]["messages"] might contain ChatMessage objects
+        users_dict = {}
+        for username, user_data in self.users.items():
+            # user_data["messages"] is a list of ChatMessage objects, so convert them:
+            msg_list_dicts = []
+            for msg in user_data["messages"]:
+                msg_list_dicts.append({
+                    "id": msg.id,
+                    "sender": msg.sender,
+                    "content": msg.content,
+                    "timestamp": msg.timestamp
+                })
+
+            users_dict[username] = {
+                "password_hash": user_data["password_hash"],
+                "messages": msg_list_dicts
+            }
+        data["users"] = users_dict
+
+        # Convert self.conversations to a serializable dict
+        conv_dict = {}
+        for key_tuple, msg_list in self.conversations.items():
+            key_str = "::".join(key_tuple)
+            msg_list_dicts = []
+            for msg in msg_list:
+                msg_list_dicts.append({
+                    "id": msg.id,
+                    "sender": msg.sender,
+                    "content": msg.content,
+                    "timestamp": msg.timestamp
+                })
+            conv_dict[key_str] = msg_list_dicts
+
+        data["conversations"] = conv_dict
+
+        # Now data is fully JSON-serializable
+        with open(self.data_file, "w") as f:
+            json.dump(data, f, indent=2)
+
+
     # Hash a password using SHA256
     def hash_password(self, password):
         return hashlib.sha256(password.encode()).hexdigest()
@@ -67,6 +147,8 @@ class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
             "messages": []
         }
         
+        self.save_data()
+
         return chat_pb2.CreateAccountResponse(
             success=True,
             message="Account created"
@@ -105,6 +187,8 @@ class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
         for key in keys_to_delete:
             del self.conversations[key]
         
+        self.save_data()
+
         return chat_pb2.DeleteAccountResponse(
             success=True,
             message="Account and all conversation history deleted"
@@ -152,6 +236,8 @@ class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
                 print(f"Error forwarding message to {recipient}: {e}")
                 self.users[recipient]["messages"].append(message_entry)
         
+        self.save_data()
+
         return chat_pb2.SendMessageResponse(
             success=True,
             message="Message sent"
@@ -173,6 +259,7 @@ class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
             messages_to_view = user_messages
             self.users[username]["messages"] = []
         
+        self.save_data()
         return chat_pb2.ReadMessagesResponse(messages=messages_to_view)
     
     def DeleteMessages(self, request, context):
@@ -224,6 +311,8 @@ class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
                 conv = self.conversations[conv_key]
                 self.conversations[conv_key] = [msg for msg in conv if msg.id not in message_ids]
         
+        self.save_data()
+
         return chat_pb2.DeleteMessagesResponse(
             success=True,
             message="Specified messages deleted"
@@ -244,6 +333,7 @@ class ChatServiceServicer(chat_pb2_grpc.ChatServiceServicer):
             current_unread = self.users[username]["messages"]
             self.users[username]["messages"] = [msg for msg in current_unread if msg.sender != other_user]
         
+        self.save_data()
         return chat_pb2.ViewConversationResponse(messages=conversation)
     
     def ListAccounts(self, request, context):

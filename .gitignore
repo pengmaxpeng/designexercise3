@@ -1,0 +1,4 @@
+chat_data.json
+chat_data_backup.json
+venv/
+__pycache__/
