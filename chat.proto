@@ -21,6 +21,20 @@ service ChatService {
   
   // Message streaming for real-time updates
   rpc SubscribeToMessages (SubscribeRequest) returns (stream ChatMessage) {}
+
+// For internal replication calls:
+  rpc ReplicateMutation(ReplicateMutationRequest) returns (ReplicateMutationResponse);
+}
+
+message ReplicateMutationRequest {
+  // A simple approach: carry a "type" field and relevant data as JSON
+  string operation_type = 1;  // e.g. "CREATE_ACCOUNT", "SEND_MESSAGE", "DELETE_ACCOUNT", etc.
+  string payload = 2;         // The data needed for that operation, possibly JSON
+}
+
+message ReplicateMutationResponse {
+  bool success = 1;
+  string message = 2;
 }
 
 // Login request message

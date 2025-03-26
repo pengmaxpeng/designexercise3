@@ -1,0 +1,17 @@
+{
+    "server_id": 3,
+    "listen_port": 50053,
+    "replicas": [
+      {
+        "server_id": 1,
+        "host": "localhost",
+        "port": 50051
+      },
+      {
+        "server_id": 2,
+        "host": "localhost",
+        "port": 50052
+      }
+    ]
+  }
+  

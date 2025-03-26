@@ -5,7 +5,7 @@ import warnings
 
 import chat_pb2 as chat__pb2
 
-GRPC_GENERATED_VERSION = '1.70.0'
+GRPC_GENERATED_VERSION = '1.71.0'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -85,6 +85,11 @@ class ChatServiceStub(object):
                 request_serializer=chat__pb2.SubscribeRequest.SerializeToString,
                 response_deserializer=chat__pb2.ChatMessage.FromString,
                 _registered_method=True)
+        self.ReplicateMutation = channel.unary_unary(
+                '/chat.ChatService/ReplicateMutation',
+                request_serializer=chat__pb2.ReplicateMutationRequest.SerializeToString,
+                response_deserializer=chat__pb2.ReplicateMutationResponse.FromString,
+                _registered_method=True)
 
 
 class ChatServiceServicer(object):
@@ -155,6 +160,13 @@ class ChatServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ReplicateMutation(self, request, context):
+        """For internal replication calls:
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_ChatServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -207,6 +219,11 @@ def add_ChatServiceServicer_to_server(servicer, server):
                     servicer.SubscribeToMessages,
                     request_deserializer=chat__pb2.SubscribeRequest.FromString,
                     response_serializer=chat__pb2.ChatMessage.SerializeToString,
+            ),
+            'ReplicateMutation': grpc.unary_unary_rpc_method_handler(
+                    servicer.ReplicateMutation,
+                    request_deserializer=chat__pb2.ReplicateMutationRequest.FromString,
+                    response_serializer=chat__pb2.ReplicateMutationResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -480,6 +497,33 @@ class ChatService(object):
             '/chat.ChatService/SubscribeToMessages',
             chat__pb2.SubscribeRequest.SerializeToString,
             chat__pb2.ChatMessage.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ReplicateMutation(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/chat.ChatService/ReplicateMutation',
+            chat__pb2.ReplicateMutationRequest.SerializeToString,
+            chat__pb2.ReplicateMutationResponse.FromString,
             options,
             channel_credentials,
             insecure,
